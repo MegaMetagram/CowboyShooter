@@ -2,6 +2,9 @@ Main Developers:
 	Patrick Mayer
 	Jacob Paccione
 	Landon Johnson
+Consulting:
+	Jenna Castlewitz
+	Rafael Casanova-Silva
 
 Assets Used:
 	Modular Building Wild West Cowboy Stylized Low Poly 3D Model
