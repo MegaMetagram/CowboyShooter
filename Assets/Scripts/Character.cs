@@ -14,8 +14,8 @@ public abstract class Character : MonoBehaviour
     //serialize needed to customize prefabs
     [SerializeField] protected int health;
     // in seconds
-    [SerializeField] protected float maxShootCooldown;    
-    [SerializeField] protected float shootCooldown;
+    [SerializeField] public float maxShootCooldown;    
+    [SerializeField] public float shootCooldown;
     [SerializeField] protected float speed;
 
     protected AudioSource shootSfx;
@@ -36,23 +36,6 @@ public abstract class Character : MonoBehaviour
 
     virtual public void TakeDamage(int damage)
     {
-        health -= damage;
-        //Debug.Log("health: " + health);
-        if (this.name == "Player")
-        {
-            // this should get the hearts in the hierarchy order so you don't need to sort
-            Image[] images = FindObjectsOfType<Image>();
-            List<Image> hearts = new List<Image>();
-            foreach(Image img in images)
-            {
-                if (img.gameObject.name.Contains("Heart"))
-                    hearts.Add(img);
-
-            }            
-            Destroy(hearts[hearts.Count - 1].gameObject);
-        }
-
-        if (health <= 0)
-            Death();        
+        Debug.LogWarning("You better implement the TakeDamage() method, or you'll be in a heap of trouble, partner.");
     }
 }

@@ -3,13 +3,10 @@
 @Description - Enemy class. Different enemy prefabs should be able to use the same script
 */
 
-using System.Collections;
 using System.Collections.Generic;
-using Unity.AI;
 using UnityEngine;
 
 using UnityEngine.AI;
-using UnityEngine.Scripting.APIUpdating;
 using Vector3 = UnityEngine.Vector3;
 
 public class Enemy : Character
@@ -22,6 +19,14 @@ public class Enemy : Character
     private List<Vector3> destList = new List<Vector3>();
     public static float maxJumpDist = 7f;
 
+    public static int enemiesInitialized = 0;
+    public static int enemiesInRoom = 0;
+    public bool enemyCounted = false;
+
+    // room number is found automatically based on hierarchy, but
+    // it can be manually set if we decide that's better
+    /*[SerializeField] */public int roomNum;
+
     [SerializeField] public float destCooldown;
     [SerializeField] private float maxDestCooldown;
     [SerializeField] private bool switchingDest;
@@ -33,11 +38,16 @@ public class Enemy : Character
 
     void Start()
     {
+        SetRoomNum();
+        // name enemies by their room number.
+        // 0 is here in case of more than 10 rooms and to prevent Contains() errors
+        gameObject.name = "Enemy0" + roomNum;
+
         agent = GetComponent<NavMeshAgent>();
         player = FindObjectOfType<Player>().gameObject;
         playerNear = false;
         playerSighted = false;
-        sightRange = 5f;
+        sightRange = 5f;        
 
         destList.Add(destination1.position);
         destList.Add(destination2.position);
@@ -48,9 +58,29 @@ public class Enemy : Character
         switchingDest = false;
 
         shootCooldown = 0f;
-        maxShootCooldown = 1f;
-        // this is only here to give feedback for shooting
+        maxShootCooldown = 1f;        
         shootSfx = GetComponent<AudioSource>();
+
+        int numEnemies = FindObjectsOfType<Enemy>().Length;
+        enemiesInitialized++;
+        if (enemiesInitialized >= numEnemies)                    
+            Door.ResetDoorCounter();
+    }    
+    
+
+    private void SetRoomNum()
+    {
+        roomNum = 1;
+        // GetRootGameObjects returns the objects in scene in the order of the hierarchy
+        // use the order of the hierarchy to determine which room an enemy is in
+        // checkpoints and enemies in the hierarchy should be ordered based on when the player encounters them
+        foreach (GameObject obj in gameObject.scene.GetRootGameObjects())
+        {
+            if (obj.GetComponent<Checkpoint>() != null)
+                roomNum++;
+            else if (obj == this.gameObject)
+                break;
+        }        
     }
 
     protected override void Shoot(GameObject player)
@@ -103,8 +133,23 @@ public class Enemy : Character
     protected override void Death()
     {
         Destroy(this.gameObject);
+        enemiesInRoom--;
+        Door.SetDoorCounter(enemiesInRoom);
+        if (enemiesInRoom <= 0)
+            Door.RaiseDoors();
     }
 
+    public int GetHealth()
+    {
+        return health;
+    }
+
+    public override void TakeDamage(int damage)
+    {
+        health -= damage;
+        if (health == 0)
+            Death();
+    }
 
     void Update()
     {
