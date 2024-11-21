@@ -7,24 +7,34 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
 
 public class MainMenu : MonoBehaviour
 {
     public GameObject mainPanel, creditsPanel, directionsPanel;
+    private SceneTransfer fadeScript;
+    private GameObject fadePanel;
 
     private void Start()
     {
         Cursor.visible = true;
         Cursor.lockState = CursorLockMode.None;
+
+        // get reference to fade panel so it can be called when deactived        
+        fadePanel = GameObject.Find("FadePanel");
+        fadeScript = fadePanel.GetComponent<SceneTransfer>();
+        // if you want a fade in to the main menu, comment this out    
+        fadePanel.GetComponent<Image>().enabled = false;
     }
 
-    public void startGamePressed()
+    public void StartGamePressed()
     {
-        int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
-        SceneManager.LoadScene(currentSceneIndex + 1);
+        fadePanel.SetActive(true);
+        int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;        
+        StartCoroutine(fadeScript.FadeToNewScene(currentSceneIndex + 1, 1f));
     }
 
-    public void switchMenus(int menuState)
+    public void SwitchMenus(int menuState)
     {
         switch(menuState)
         {

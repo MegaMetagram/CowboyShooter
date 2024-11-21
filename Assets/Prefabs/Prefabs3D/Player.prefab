@@ -154,6 +154,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fabdba5260705cd4f9edfdb97c060706, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  lassoYOffset: 0.25
   hook: {fileID: 0}
   barrel: {fileID: 0}
   lassoTip: {fileID: 819314125773286768}
@@ -274,6 +275,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fabdba5260705cd4f9edfdb97c060706, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  lassoYOffset: 0.25
   hook: {fileID: 0}
   barrel: {fileID: 0}
   lassoTip: {fileID: 819314125773286768}
@@ -390,6 +392,7 @@ GameObject:
   - component: {fileID: 7205744336693387779}
   - component: {fileID: 3357556871480406274}
   - component: {fileID: 6946099836117882698}
+  - component: {fileID: 4959015502900481118}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -406,7 +409,7 @@ Transform:
   m_GameObject: {fileID: 8014982413098539183}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.71, y: 1.437, z: -10.406}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -474,14 +477,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   health: 5
+  speed: 6
+  jumpStrength: 7
+  gravityAccel: -13
   maxShootCooldown: 0.5
   shootCooldown: 0
-  speed: 6
-  acceleration: 10
-  jumpStrength: 7
   slideVel: -0.5
   wallSlideThreshold: 2
-  timeSinceJump: 0
   perfectJumpWindow: 0.15
   kickStopThreshold: 8
   kickLerpSpeed: 0.1
@@ -490,6 +492,7 @@ MonoBehaviour:
   perfectWallJumpSfx: {fileID: 7205744336693387779}
   gunReloadSfx: {fileID: 3357556871480406274}
   wallSlideSfx: {fileID: 0}
+  takeDamageSfx: {fileID: 4959015502900481118}
   horRotSpeed: 4
   vertRotSpeed: 4
   currentMovementState: 0
@@ -582,6 +585,22 @@ MonoBehaviour:
         m_CallState: 2
     m_ActionId: 8ed75731-9e5c-43cc-9b52-bf00303f261d
     m_ActionName: Player/Shoot[/Mouse/leftButton]
+  - m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: 8509015516763741730}
+        m_TargetAssemblyTypeName: Player, Assembly-CSharp
+        m_MethodName: RestartLevelActivated
+        m_Mode: 0
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+    m_ActionId: b6c707d9-04f1-4eae-86e2-faaa1c728a0d
+    m_ActionName: Player/RestartLevel[/Keyboard/r]
   m_NeverAutoSwitchControlSchemes: 0
   m_DefaultControlScheme: 
   m_DefaultActionMap: Player
@@ -982,6 +1001,102 @@ AudioSource:
   serializedVersion: 4
   OutputAudioMixerGroup: {fileID: 0}
   m_audioClip: {fileID: 8300000, guid: b176494f775631d4eadde027dcf4992a, type: 3}
+  m_PlayOnAwake: 0
+  m_Volume: 1
+  m_Pitch: 1
+  Loop: 0
+  Mute: 0
+  Spatialize: 0
+  SpatializePostEffects: 0
+  Priority: 128
+  DopplerLevel: 1
+  MinDistance: 1
+  MaxDistance: 500
+  Pan2D: 0
+  rolloffMode: 0
+  BypassEffects: 0
+  BypassListenerEffects: 0
+  BypassReverbZones: 0
+  rolloffCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 1
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  panLevelCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  spreadCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  reverbZoneMixCustomCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+--- !u!82 &4959015502900481118
+AudioSource:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8014982413098539183}
+  m_Enabled: 1
+  serializedVersion: 4
+  OutputAudioMixerGroup: {fileID: 0}
+  m_audioClip: {fileID: 8300000, guid: 5aef94f76e59cbb45a54120b4ec8d1cf, type: 3}
   m_PlayOnAwake: 0
   m_Volume: 1
   m_Pitch: 1

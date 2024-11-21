@@ -1,6 +1,5 @@
 /*
 @Authors - Patrick, Landon
-@Authors - Patrick, Landon
 @Description - Player singleton class
 */
 
@@ -15,32 +14,42 @@ using UnityEngine.SceneManagement;
 using Vector2 = UnityEngine.Vector2;
 using Vector3 = UnityEngine.Vector3;
 using UnityEngine.UI;
+using JetBrains.Rider.Unity.Editor;
 
 public class Player : Character
 {
     //singleton obj that's accessible to all objects
     public static Player player;
 
+    [SerializeField] protected float speed;
     private Vector2 lastMoveInput = Vector2.zero;
-    private Vector3 maxSpeed = new Vector3(10f, 10f, 10f);
-    public float acceleration = 10f;
+    //!Must be between 0 and 1f. Determines how fast player accelerates towards max speed
     private float moveAccel = 0.4f;
 
     private bool tryingToJump;
+    private bool holdingRMB;
+    private bool holdingRestart;
     private bool inJumpCooldown = false;    
     public float jumpStrength = 7f;
     [SerializeField] private float gravityAccel = -13f;
     private int jumpCooldown;
     private int maxJumpCooldown;
 
+    [SerializeField] public float maxShootCooldown;
+    [SerializeField] public float shootCooldown;
+
+    private int maxRestartCooldown;
+    private int restartCooldown;
+
     private bool inLassoLock = false;
     private int lassoLockCooldown;
     private int maxLassoLockCooldown;    
-    private float lassoForceMultiplier = 1.3f;
+    private float lassoForceMultiplier = 15f;
 
     // these need to be static so the values persist when scene reloads
     public static int roomNum;    
     public static Vector3 respawnPos;
+    public static Vector3 respawnRot;
     public static bool hasCheckpoint = false;
 
     [SerializeField] private float slideVel = -0.5f;
@@ -50,7 +59,7 @@ public class Player : Character
     private int wallJumpsLeft = 1;
     private int maxWallJumps = 1;
 
-    [SerializeField] private float timeSinceJump = 0f;
+    private float timeSinceJump = 0f;
     [SerializeField] private float perfectJumpWindow = 0.15f;
     private bool kickStarted = false;
     private bool kickLerping = false;
@@ -67,7 +76,8 @@ public class Player : Character
     [SerializeField] private AudioSource lassoSfx;
     [SerializeField] private AudioSource perfectWallJumpSfx;
     [SerializeField] private AudioSource gunReloadSfx;
-    [SerializeField] private AudioSource wallSlideSfx;
+    [SerializeField] private AudioSource wallSlideSfx;    
+    [SerializeField] private AudioSource takeDamageSfx;
 
     private bool reloadPlayed = false;
 
@@ -82,21 +92,29 @@ public class Player : Character
         AIR,
         SWINGING,
         HANGING,
-        SLIDING
+        SLIDING,
+        FLYING,
     };
 
     public movementState currentMovementState;
 
     void Start()
     {
+        if (gunSfx == null){
+            Debug.LogError("You ain't got a gun sound, partner!");
+        }
+
         // when player dies and scene reloads
         // when more scenes are used, if scene loading is different from current scene, set hasCheckpoint to false
         if (hasCheckpoint)
+        {
             transform.position = respawnPos;
+            transform.eulerAngles = respawnRot;
+        }
 
         roomNum = 1;
 
-        // override default gravity (-9.81) to desired gravity
+        // Important: this affects gravity for everything!
         Physics.gravity = new Vector3(0, gravityAccel, 0);
 
         // this makes the cursor stay insivible in the editor
@@ -104,16 +122,28 @@ public class Player : Character
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
         
+
         maxShootCooldown = 0.5f;
-        shootCooldown = maxShootCooldown;        
+        shootCooldown = maxShootCooldown;  
+
+        jumpCooldown = maxJumpCooldown = 2;
+
+        lassoLockCooldown = maxLassoLockCooldown = 5;
+        
+        //remember it's not in terms of frames, so a value of 60 does not mean it'll wait 1 second.
+        restartCooldown = maxRestartCooldown = 40;      
+
+        //come back here
 
         cam = Camera.main;
         // lasso should be the second child of Camera for this to work
         lasso = transform.GetChild(0).GetChild(1).gameObject;        
         rigidbody = GetComponent<Rigidbody>();   
 
-        jumpCooldown = maxJumpCooldown = 2;
-        lassoLockCooldown = maxLassoLockCooldown = 5;
+        
+
+        holdingRMB = false;
+        holdingRestart = false;
     }    
 
     private void Awake()
@@ -141,13 +171,11 @@ public class Player : Character
         }
     }
    
-    protected override void Shoot(GameObject enemy)
+    protected void Shoot(GameObject enemy)
     {
-        if (gunSfx != null)
-            gunSfx.Play();
-
         //Debug.Log("shot enemy");
         enemy.GetComponent<Enemy>().TakeDamage(1);
+        enemy.GetComponent<Enemy>().SetGotShot(true);
     }
 
     public GameObject ObjAimedAt()
@@ -164,16 +192,21 @@ public class Player : Character
     public void ShootActivated(InputAction.CallbackContext context)
     {
         if (context.started)
-        {
+        { 
             try
             {
                 GameObject objAimed = ObjAimedAt();
                 //Debug.Log("objAimed: " + objAimed.name);
-                if (objAimed.GetComponent<Enemy>() != null && shootCooldown >= maxShootCooldown)
+                if (shootCooldown >= maxShootCooldown)
                 {
-                    Shoot(objAimed);
+                    gunSfx.Play();
                     shootCooldown = 0f;
                     reloadPlayed = false;
+
+                    if(objAimed.GetComponent<Enemy>() != null)
+                    {
+                        Shoot(objAimed);
+                    }
                 }
             }
             catch
@@ -197,12 +230,31 @@ public class Player : Character
                 lassoSfx.Play();
             }
         }
+        else if (context.performed){
+            holdingRMB = true;
+
+            if (currentMovementState == movementState.SWINGING){
+               bool valid = lasso.GetComponent<Lasso>().StartLasso();
+
+                if (valid)
+                {
+                    player.currentMovementState = movementState.SWINGING;
+                    lassoLockCooldown = maxLassoLockCooldown;
+                    inLassoLock = true;
+                    lassoSfx.Play();
+                } 
+            }
+        }
         else if (context.canceled)
         {
-            //Debug.Log("lasso is being canceled");
+            holdingRMB = false;
+            
             //prevents player from being in air state after just tapping RMB
-            if (player.currentMovementState != movementState.GROUND)
+            if (!isGrounded() && player.currentMovementState == movementState.SWINGING)
             {
+                player.currentMovementState = movementState.FLYING;
+            }
+            else if (!isGrounded() && player.currentMovementState == movementState.HANGING){
                 player.currentMovementState = movementState.AIR;
             }
             
@@ -221,6 +273,21 @@ public class Player : Character
         {
             tryingToJump = false;
         }
+    }
+
+    public void RestartLevelActivated(InputAction.CallbackContext context)
+    {
+        bool firstPressingR = context.started && !holdingRestart;
+        bool holdingR = context.performed;
+
+        if (firstPressingR || holdingR){
+            holdingRestart = true;
+        }
+        else{
+            holdingRestart = false;
+            restartCooldown = maxRestartCooldown;
+        }
+
     }
     
     private void OnCollisionEnter(Collision collision)
@@ -321,6 +388,14 @@ public class Player : Character
             currentMovementState = movementState.AIR;
     } 
 
+    private void OnTriggerEnter(Collider collision)
+    {
+        if (collision.tag == "HOOK" && holdingRMB)
+        {
+            currentMovementState = movementState.HANGING;
+        }
+    }
+
     public bool isGrounded()
     {
         return (currentMovementState == movementState.GROUND);
@@ -348,6 +423,8 @@ public class Player : Character
     public override void TakeDamage(int damage)
     {
         health -= damage;
+        if(takeDamageSfx != null)
+            takeDamageSfx.Play();
         // this should get the hearts in the hierarchy order so you don't need to sort
         Image[] images = FindObjectsOfType<Image>();
         List<Image> hearts = new List<Image>();
@@ -376,8 +453,7 @@ public class Player : Character
 
         Vector3 velocity = velocityY + velocityXZ;
 
-        //Debug.Log(velocity);
-        return velocity;
+        return velocity.normalized;
     }
 
     public void lassoLaunch(Vector3 targetPosition, float height)
@@ -390,9 +466,12 @@ public class Player : Character
         return GetComponent<BoxCollider>().bounds.min.y + 0.05f;
     }
 
+    //Dragon's Den of the Movement Code
     void FixedUpdate()
     {
-        Debug.Log("State: " + currentMovementState);        
+        //Debug.Log("State: " + currentMovementState);
+        //Debug.Log(rigidbody.velocity.magnitude);
+        //Debug.Log(wallJumpsLeft);        
 
         //forces camera to look straight as you're opening up scene
         if (Time.timeSinceLevelLoad < 0.1f)
@@ -412,6 +491,16 @@ public class Player : Character
                 lassoLockCooldown = maxLassoLockCooldown;
                 inLassoLock = false;
             }
+        }
+
+        if (holdingRestart){
+            if (restartCooldown > 0){
+                restartCooldown--;
+            }else{
+                restartCooldown = maxRestartCooldown;
+                holdingRMB = false;
+                Death();
+            }
         }       
 
         if (currentMovementState == movementState.SLIDING)
@@ -420,24 +509,15 @@ public class Player : Character
                 wallSlideSfx.Play();
             rigidbody.velocity = new Vector3(0, slideVel, 0);
         }
-        else if (currentMovementState == movementState.SWINGING)
-        {
-            //You cannot move normally when you're swinging.
-            lastMoveInput = Vector2.zero;
-            //return;
-            /*
-            // need to assign y velocity first so it is not overriden
-            Vector3 newVel = new Vector3(0, rigidbody.velocity.y, 0);
-
-
-            newVel += (transform.right * lastMoveInput.x +
-                       transform.forward * lastMoveInput.y) * speed;
-
-            rigidbody.velocity = Vector3.Lerp(rigidbody.velocity, newVel, moveAccel);
-            */
+        else if (currentMovementState == movementState.HANGING){
+            int hangModifier = 5;
+            rigidbody.velocity = new Vector3(0, gravityAccel / hangModifier, 0);
         }
-        else
+        else if (currentMovementState == movementState.GROUND || currentMovementState == movementState.AIR)
         {
+            //!Acceleration based movement. The only things you should change if you want to change movement are
+            //!speed and moveAccel 
+
             // need to assign y velocity first so it is not overriden
             Vector3 newVel = new Vector3(0, rigidbody.velocity.y, 0);
             newVel += (transform.right * lastMoveInput.x +

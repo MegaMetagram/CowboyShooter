@@ -7,6 +7,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using Unity.VisualScripting;
 using UnityEngine;
 
 using Vector2 = UnityEngine.Vector2;
@@ -18,8 +19,9 @@ public class Lasso : MonoBehaviour
     private Vector3 grapplePoint;
     //private SpringJoint joint;
     private float lassoMaxRange = 100f;
-    //currently 0, but if we want the player to grapple OVER an obj we can increase the value
-    float lassoYOffset = 0;
+    
+    //!Make sure you keep track of this cause it's in the editor;
+    [SerializeField] private float lassoYOffset = 0.25f;
     float overshootYAxis = 5f;
 
     [SerializeField] private GameObject hook, barrel;
@@ -38,6 +40,21 @@ public class Lasso : MonoBehaviour
         if (usingLasso()){
             DrawRope();
         }
+
+        //jank that prevents stupid visual bug where rope is suspended in the air after going from hanging to ground
+        if (Player.player.currentMovementState == Player.movementState.HANGING){
+            RaycastHit hit;
+
+            if (Physics.Raycast(camera.transform.position, camera.transform.up * -1, out hit, 0.6f)) 
+            {
+                Vector3 downwardPoint = hit.point;
+
+                if (hit.transform.gameObject.tag == "FLOOR")
+                {
+                    EndLasso();
+                }
+            }
+        }
     }
 
     public bool StartLasso()
@@ -53,7 +70,7 @@ public class Lasso : MonoBehaviour
             }
 
             float grapplePointRelativeYPosition = grapplePoint.y - Player.player.playerFeetPosition();
-            float highestPointOnArcTrajectory = grapplePointRelativeYPosition + lassoYOffset;
+            float highestPointOnArcTrajectory = grapplePointRelativeYPosition - lassoYOffset;
 
             
             if(grapplePointRelativeYPosition < 0)
@@ -74,16 +91,14 @@ public class Lasso : MonoBehaviour
     public void EndLasso()
     {
         lineRenderer.positionCount = 0;
-        //Destroy(joint);
     }
 
     public void DrawRope()
     {
-        /*
-        if (joint == null){
+        if (lineRenderer.positionCount < 2)
+        {
             return;
         }
-        */
 
         lineRenderer.SetPosition(0, lassoTip.position);
         lineRenderer.SetPosition(1, grapplePoint);
