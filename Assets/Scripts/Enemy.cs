@@ -1,7 +1,9 @@
 /*
 @Authors - Patrick, Landon
 @Description - Enemy class. Different enemy prefabs should be able to use the same script
+!There should be be NO PRIVATE METHODS in this class! Only protected and public.
 */
+
 
 using System.Collections.Generic;
 using UnityEngine;
@@ -29,10 +31,7 @@ public abstract class Enemy : Character
     [SerializeField] protected float maxAttackCooldown;
     [SerializeField] protected int attackDamage;
 
-    // room number is found automatically based on hierarchy, but
-    // it can be manually set if we decide that's better
-    /*[SerializeField] */
-    protected int roomNum;
+    [SerializeField] protected int roomNum;
 
     protected float destCooldown;
     protected float maxDestCooldown;
@@ -43,23 +42,25 @@ public abstract class Enemy : Character
     protected bool playerNear;
     protected bool playerSighted;
     protected bool gotShot = false;
+    protected bool isDead = false;
 
     [SerializeField] protected AudioSource deathSfx;
 
     // all enemies have the same start function
     void Start()
     {
-        SetRoomNum();                
+        //SetRoomNum();                
         gameObject.name += "R" + roomNum;
-
-        agent = GetComponent<NavMeshAgent>();
+        
+        agent = GetComponent<NavMeshAgent>();        
         player = FindObjectOfType<Player>().gameObject;
         playerNear = false;
-        playerSighted = false;             
+        playerSighted = false;        
 
         destList.Add(destination1.position);
         destList.Add(destination2.position);
         agent.destination = destination1.position;
+        
         // in seconds
         destCooldown = 0f;
         maxDestCooldown = 0.2f;
@@ -185,6 +186,11 @@ public abstract class Enemy : Character
     // called from inherited TakeDamage function
     protected override void Death()
     {
+        isDead = true;
+        //disables all components and re-enables death SFX
+        disableAllComponents();
+        deathSfx.enabled = true;
+        
         if(deathSfx != null)
             deathSfx.Play();
 
@@ -192,6 +198,7 @@ public abstract class Enemy : Character
         Door.SetDoorCounter(enemiesInRoom);
         if (enemiesInRoom <= 0)
             Door.RaiseDoors();
+        
         //waits 1 second and then calls DeathCleanup()
         Invoke("DeathCleanup", 1);
     }
@@ -211,5 +218,68 @@ public abstract class Enemy : Character
         health -= damage;
         if (health == 0)
             Death();
+    }
+
+    protected void disableAllComponents()
+    {
+        MonoBehaviour[] components = GetComponents<MonoBehaviour>();
+        foreach (MonoBehaviour c in components)
+        {
+            if (c != null && c != deathSfx)
+            {
+                c.enabled = false;
+            }
+        }
+
+        NavMeshAgent navMeshAgent = GetComponent<NavMeshAgent>();
+        if (navMeshAgent != null)
+        {
+            navMeshAgent.enabled = false;
+        }
+
+        Rigidbody rb = GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.isKinematic = true;
+        }
+
+        MeshRenderer meshRenderer= GetComponent<MeshRenderer>();
+        if (meshRenderer != null)
+        {
+            meshRenderer.enabled = false;
+        }
+
+        CapsuleCollider capsuleColldier= GetComponent<CapsuleCollider>();
+        if (capsuleColldier != null)
+        {
+            capsuleColldier.enabled = false;
+        }
+
+        GameObject[] childObjects = GetAllChildren(gameObject);
+        foreach (GameObject child in childObjects)
+        {
+            MeshRenderer childMeshRenderer = child.GetComponent<MeshRenderer>();
+            if (childMeshRenderer != null)
+            {
+                childMeshRenderer.enabled = false;
+            }
+        }
+    }
+
+    protected GameObject[] GetAllChildren(GameObject parent)
+    {
+        Transform[] childTransforms = parent.GetComponentsInChildren<Transform>();
+        GameObject[] children = new GameObject[childTransforms.Length - 1];
+        int index = 0;
+
+        foreach (Transform child in childTransforms)
+        {
+            if (child.gameObject != parent)
+            {
+                children[index] = child.gameObject;
+                index++;
+            }
+        }
+        return children;
     }
 }
