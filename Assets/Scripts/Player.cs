@@ -83,8 +83,8 @@ public class Player : Character
 
     // Snap is how closely the camera stays to the actual mouse value
     // Sensitivity changes how much magnitude moving the mouse has
-    [SerializeField] private float horCamSnap = 10f;
-    [SerializeField] private float vertCamSnap = 10f;
+    [SerializeField] private float CamSnapX = 20f;
+    [SerializeField] private float CamSnapY = 20f;
     [SerializeField] private float mouseSensitivityX = 10f;
     [SerializeField] private float mouseSensitivityY = 10f;
     private float curMouseX = 0f;
@@ -540,8 +540,8 @@ public class Player : Character
         }
 
         // Input.GetAxis is the change in value since last frame                
-        curMouseX = Mathf.Lerp(curMouseX, Input.GetAxis("Mouse X"), horCamSnap * Time.deltaTime);
-        curMouseY = Mathf.Lerp(curMouseY, Input.GetAxis("Mouse Y"), vertCamSnap * Time.deltaTime); 
+        curMouseX = Mathf.Lerp(curMouseX, Input.GetAxis("Mouse X"), CamSnapX * Time.deltaTime);
+        curMouseY = Mathf.Lerp(curMouseY, Input.GetAxis("Mouse Y"), CamSnapY * Time.deltaTime); 
 
         // kick rotation momentarily overrides normal rotation
         // consider using a time variable to unstuck for emergencies
@@ -569,14 +569,17 @@ public class Player : Character
             // just in case
             newPlayerRot.x = playerRot.x;
             newPlayerRot.z = 0;
-            transform.eulerAngles = Vector3.Lerp(playerRot, newPlayerRot, horCamSnap);
+            transform.eulerAngles = Vector3.Lerp(playerRot, newPlayerRot, CamSnapY);
 
+            
             // The camera only scrolls vertically since the player parent object handles horizontal scroll
             Vector3 camRot = cam.transform.rotation.eulerAngles;
             Vector3 newCamRot = Vector3.zero;
-
+            
+            
             float deltaMouseX = Input.GetAxis("Mouse X");
             float deltaMouseY = Input.GetAxis("Mouse Y");
+
 
             // camRot.x starts decreasing from 360 when you look up and is positive downwards   
             bool inNormalRange = (camRot.x > 280f || camRot.x < 80f);
@@ -586,11 +589,12 @@ public class Player : Character
             newCamRot.z = 0;
             newCamRot.y = camRot.y;
             // -= because xRot is negative upwards
+            
             if (inNormalRange || inLowerRange | inRaiseRange)
             {                
                 newCamRot.x = camRot.x - mouseY;
-                cam.transform.eulerAngles = Vector3.Lerp(camRot, newCamRot, vertCamSnap);
-            }            
+                cam.transform.eulerAngles = Vector3.Lerp(camRot, newCamRot, CamSnapX);
+            }     
         }
         
         if (kickStarted)
