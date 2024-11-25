@@ -9,7 +9,11 @@ using UnityEngine.AI;
 public class Floor : MonoBehaviour
 {
     [SerializeField] private GameObject singleNavLink;
-    private float maxJumpDist;
+    // how far the NavMesh can jump up/away to another floor
+    // make sure the jump distance in the navigation tab is sufficient for this value
+    // otherwise NavMesh will not jump even though a link is set
+    private float maxJumpDist = Enemy.maxJumpDist;
+
     private MeshRenderer myMesh;
     private List<GameObject> perimiterLinks = new List<GameObject>();
 
@@ -34,13 +38,6 @@ public class Floor : MonoBehaviour
         // auto update positions needs to be activated in the NavLink prefabs so the start and end transforms can be modified        
 
         myMesh = GetComponent<MeshRenderer>();
-        // how far the NavMesh can jump up/away to another floor
-        // make sure the jump distance in the navigation tab is sufficient for this value
-        // otherwise NavMesh will not jump even though a link is set
-        maxJumpDist = Enemy.maxJumpDist;
-
-        xSpacePerLink = 0.8f;
-        zSpacePerLink = 0.8f;
         
         float minLinkX = myMesh.bounds.min.x + xSpacePerLink;
         float maxLinkX = myMesh.bounds.max.x - xSpacePerLink;
@@ -61,7 +58,7 @@ public class Floor : MonoBehaviour
         int linkNum = 0;        
 
         // place links along top and bottom edges and place a link on nearby floor if it exists
-        for (; curLinkX < maxLinkX; curLinkX += 1.0f)
+        for (; curLinkX < maxLinkX; curLinkX += xSpacePerLink)
         {
             Vector3 linkPos1 = new Vector3(curLinkX, linkY, minLinkZ);
             GameObject link1 = Instantiate(singleNavLink, linkPos1, Quaternion.identity);
@@ -86,7 +83,7 @@ public class Floor : MonoBehaviour
         float curLinkZ = minLinkZ;
 
         // same thing with left and right edges
-        for (; curLinkZ < myMesh.bounds.max.z; curLinkZ += 1.0f)
+        for (; curLinkZ < myMesh.bounds.max.z; curLinkZ += zSpacePerLink)
         {
             Vector3 linkPos1 = new Vector3(minLinkX, linkY, curLinkZ);
             GameObject link1 = Instantiate(singleNavLink, linkPos1, Quaternion.identity);

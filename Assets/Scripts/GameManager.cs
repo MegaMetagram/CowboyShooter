@@ -13,7 +13,10 @@ public class GameManager : MonoBehaviour
     public static GameManager gameManager;
     
     public int currentLevel;
-    public bool debugMode;
+    public static int currentCheckpoint = 0;
+    [SerializeField] private bool debugMode = false;
+    private bool disableCursor;
+    private bool enableCursor;
 
     public void Awake()
     {
@@ -31,7 +34,9 @@ public class GameManager : MonoBehaviour
     //!You MUST change game manager variables here!
     public void Start()
     {
-        debugMode = false;
+        //Debug.Log("cp on Start(): " + currentCheckpoint);
+        disableCursor = false;
+        enableCursor = false;
     }
 
     public void Update()
@@ -44,5 +49,27 @@ public class GameManager : MonoBehaviour
                 Destroy(enemy.gameObject);
             }
         }
+
+        //This cannot be if-else, they are not mutually exclusive
+        if (enableCursor)
+        {
+            EnableCursor();
+        }
+        if (disableCursor) 
+        {
+            DisableCursor();
+        }
+    }
+
+    public void EnableCursor() 
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    public void DisableCursor() 
+    {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 }

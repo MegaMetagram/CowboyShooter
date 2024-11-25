@@ -15,6 +15,7 @@ using Vector2 = UnityEngine.Vector2;
 using Vector3 = UnityEngine.Vector3;
 using UnityEngine.UI;
 using JetBrains.Rider.Unity.Editor;
+using System.Runtime.ConstrainedExecution;
 
 public class Player : Character
 {
@@ -25,11 +26,13 @@ public class Player : Character
     private Vector2 lastMoveInput = Vector2.zero;
     //!Must be between 0 and 1f. Determines how fast player accelerates towards max speed
     private float moveAccel = 0.4f;
+    
+    private float healthLastFrame;
 
     private bool tryingToJump;
     private bool holdingRMB;
     private bool holdingRestart;
-    private bool inJumpCooldown = false;    
+    private bool inJumpCooldown = false;
     public float jumpStrength = 7f;
     [SerializeField] private float gravityAccel = -13f;
     private int jumpCooldown;
@@ -44,10 +47,12 @@ public class Player : Character
     private bool inLassoLock = false;
     private int lassoLockCooldown;
     private int maxLassoLockCooldown;    
-    private float lassoForceMultiplier = 15f;
+    private const float startingLassoForceMultiplier = 10f;  //originally 15f
+    private const float lassoForceIncrease = 0.15f;
+    private float maxLassoSpeed = 30f;
+    private float lassoForceMultiplier;
 
-    // these need to be static so the values persist when scene reloads
-    public static int roomNum;    
+    // these need to be static so the values persist when scene reloads    
     public static Vector3 respawnPos;
     public static Vector3 respawnRot;
     public static bool hasCheckpoint = false;
@@ -79,12 +84,14 @@ public class Player : Character
     [SerializeField] private AudioSource wallSlideSfx;    
     [SerializeField] private AudioSource takeDamageSfx;
 
+    [SerializeField] private GameObject healthBar;
+
     private bool reloadPlayed = false;
 
     // Snap is how closely the camera stays to the actual mouse value
     // Sensitivity changes how much magnitude moving the mouse has
-    [SerializeField] private float CamSnapX = 20f;
-    [SerializeField] private float CamSnapY = 20f;
+    [SerializeField] private float horCamSnap = 10f;
+    [SerializeField] private float vertCamSnap = 10f;
     [SerializeField] private float mouseSensitivityX = 10f;
     [SerializeField] private float mouseSensitivityY = 10f;
     private float curMouseX = 0f;
@@ -117,8 +124,6 @@ public class Player : Character
             transform.eulerAngles = respawnRot;
         }
 
-        roomNum = 1;
-
         // Important: this affects gravity for everything!
         Physics.gravity = new Vector3(0, gravityAccel, 0);
 
@@ -126,8 +131,9 @@ public class Player : Character
         // to make cursor visible, press Escape  
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
-        
 
+        lassoForceMultiplier = startingLassoForceMultiplier;
+        
         maxShootCooldown = 0.5f;
         shootCooldown = maxShootCooldown;  
 
@@ -138,17 +144,15 @@ public class Player : Character
         //remember it's not in terms of frames, so a value of 60 does not mean it'll wait 1 second.
         restartCooldown = maxRestartCooldown = 40;      
 
-        //come back here
-
         cam = Camera.main;
         // lasso should be the second child of Camera for this to work
         lasso = transform.GetChild(0).GetChild(1).gameObject;        
-        rigidbody = GetComponent<Rigidbody>();   
-
-        
+        rigidbody = GetComponent<Rigidbody>();           
 
         holdingRMB = false;
         holdingRestart = false;
+
+        healthLastFrame = health;
     }    
 
     private void Awake()
@@ -176,7 +180,7 @@ public class Player : Character
         }
     }
    
-    protected void Shoot(GameObject enemy)
+    private void Shoot(GameObject enemy)
     {
         //Debug.Log("shot enemy");
         enemy.GetComponent<Enemy>().TakeDamage(1);
@@ -196,14 +200,15 @@ public class Player : Character
 
     public void ShootActivated(InputAction.CallbackContext context)
     {
-        if (context.started)
+        //without second condition, player can shoot once while being in pause menu
+        if (context.started && !PauseMenu.gameIsPaused)
         { 
             try
             {
                 GameObject objAimed = ObjAimedAt();
                 //Debug.Log("objAimed: " + objAimed.name);
                 if (shootCooldown >= maxShootCooldown)
-                {
+                {                    
                     gunSfx.Play();
                     shootCooldown = 0f;
                     reloadPlayed = false;
@@ -237,24 +242,13 @@ public class Player : Character
         }
         else if (context.performed)
         {
+            //actual logic for holding RMB must go somewhere else since context.performed is only called the FIRST frame the user holds RMB
             holdingRMB = true;
-
-            if (currentMovementState == movementState.SWINGING)
-            {
-               bool valid = lasso.GetComponent<Lasso>().StartLasso();
-
-                if (valid)
-                {
-                    player.currentMovementState = movementState.SWINGING;
-                    lassoLockCooldown = maxLassoLockCooldown;
-                    inLassoLock = true;
-                    lassoSfx.Play();
-                } 
-            }
         }
         else if (context.canceled)
         {
             holdingRMB = false;
+            lassoForceMultiplier = startingLassoForceMultiplier;
             
             //prevents player from being in air state after just tapping RMB
             if (!isGrounded() && player.currentMovementState == movementState.SWINGING)
@@ -295,7 +289,14 @@ public class Player : Character
             holdingRestart = false;
             restartCooldown = maxRestartCooldown;
         }
+    }
 
+    public void PauseActivated(InputAction.CallbackContext context)
+    {
+        if (context.started)
+        {
+            PauseMenu.gameIsPaused = !PauseMenu.gameIsPaused;
+        }
     }
     
     private void OnCollisionEnter(Collision collision)
@@ -419,6 +420,76 @@ public class Player : Character
         return health;
     }
 
+    public int GetMaxHealth()
+    {
+        return maxHealth;
+    }
+
+    public void SetHealth(int h)
+    {
+        health = h;
+    }
+
+    private void UpdateHealthBar()
+    {
+        List<GameObject> hearts = new List<GameObject>();
+        for (int i = 0; i < healthBar.transform.childCount; i++)
+        {
+            hearts.Add(healthBar.transform.GetChild(i).gameObject);
+        }
+
+        int numActiveHearts = 0;
+        for (int i = 0; i < hearts.Count; i++)
+        {
+            if (hearts[i].activeSelf)
+            {
+                numActiveHearts++;
+            }
+        }
+
+
+        int healthDisparity = health - numActiveHearts;
+        bool tooManyHearts = healthDisparity < 0;
+        bool notEnoughHearts = healthDisparity > 0;
+
+        if (tooManyHearts)
+        {
+            int healthIndex = hearts.Count - 1;
+
+            while (healthDisparity < 0 && healthIndex > 0)
+            {
+                if (hearts[healthIndex].activeSelf)
+                {
+                    hearts[healthIndex].SetActive(false);
+                    healthDisparity++;
+                }
+
+                healthIndex--;
+            }
+        }
+        else if (notEnoughHearts)
+        {
+            int healthIndex = 0;
+            
+            while (healthDisparity > 0 && healthIndex < hearts.Count)
+            {
+                if (!hearts[healthIndex].activeSelf)
+                {
+                    hearts[healthIndex].SetActive(true);
+                    healthDisparity--;
+                }
+                
+                healthIndex++;
+            }
+        }
+        else
+        {
+            Debug.LogError("This aint s'posed to happen, partner!");
+        }
+
+        
+    }
+
     protected override void Death()
     {
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
@@ -426,6 +497,7 @@ public class Player : Character
         Floor.floorsInitialized = 0;
         Enemy.enemiesInitialized = 0;
         Enemy.enemiesInRoom = 0;
+        Door.movingUp = false;
     }
 
     public override void TakeDamage(int damage)
@@ -433,23 +505,14 @@ public class Player : Character
         health -= damage;
         if(takeDamageSfx != null)
             takeDamageSfx.Play();
-        // this should get the hearts in the hierarchy order so you don't need to sort
-        Image[] images = FindObjectsOfType<Image>();
-        List<Image> hearts = new List<Image>();
-        foreach (Image img in images)
-        {
-            if (img.gameObject.name.Contains("Heart"))
-                hearts.Add(img);
-        }
-        if(hearts.Count > 0)
-            Destroy(hearts[hearts.Count - 1].gameObject);
 
+        SetHealth(health);
         if (health == 0)
             Death();
-    }
+    }    
 
     //courtesy of internet physics/game dev guru. Calculates force needed to launch player towards hook
-    //if needed, we can tweak this so that distance is not a factor or is less of a factor
+    //most of what this function does is probably unnecessary, but we should only change it if needed cause it works!
     public Vector3 calculateLassoForce(Vector3 startPoint, Vector3 endPoint, float trajectoryHeight)
     {
         float gravity = Physics.gravity.y;
@@ -467,7 +530,9 @@ public class Player : Character
 
     public void lassoLaunch(Vector3 targetPosition, float height)
     {
-        rigidbody.velocity = calculateLassoForce(transform.position, targetPosition, height) * lassoForceMultiplier;
+        Vector3 initialLassoForce = calculateLassoForce(transform.position, targetPosition, height) * lassoForceMultiplier;
+        rigidbody.velocity = (initialLassoForce.magnitude <= maxLassoSpeed ? initialLassoForce : initialLassoForce.normalized * maxLassoSpeed);
+        //Debug.Log(rigidbody.velocity.magnitude);
     }
 
     public float playerFeetPosition()
@@ -483,7 +548,13 @@ public class Player : Character
 
         //forces camera to look straight as you're opening up scene
         if (Time.timeSinceLevelLoad < 0.1f)
-            return;        
+            return;
+
+        if (health != healthLastFrame)
+        {
+            UpdateHealthBar();
+            //Debug.Log("this is being called");
+        }        
 
         //guarantees lasso state won't be overwritten
         if (inLassoLock)
@@ -509,13 +580,20 @@ public class Player : Character
             }
             else
             {
-                restartCooldown = maxRestartCooldown;
-                holdingRMB = false;
                 Death();
             }
-        }       
+        }     
+  
 
-        if (currentMovementState == movementState.SLIDING)
+
+        if (currentMovementState == movementState.SWINGING)
+        {
+            if (holdingRMB){
+                lassoForceMultiplier += lassoForceIncrease;
+                lasso.GetComponent<Lasso>().ContinueLasso();
+            } 
+        }
+        else if (currentMovementState == movementState.SLIDING)
         {
             if(wallSlideSfx != null && !wallSlideSfx.isPlaying)
                 wallSlideSfx.Play();
@@ -540,8 +618,8 @@ public class Player : Character
         }
 
         // Input.GetAxis is the change in value since last frame                
-        curMouseX = Mathf.Lerp(curMouseX, Input.GetAxis("Mouse X"), CamSnapX * Time.deltaTime);
-        curMouseY = Mathf.Lerp(curMouseY, Input.GetAxis("Mouse Y"), CamSnapY * Time.deltaTime); 
+        curMouseX = Mathf.Lerp(curMouseX, Input.GetAxis("Mouse X"), horCamSnap * Time.deltaTime);
+        curMouseY = Mathf.Lerp(curMouseY, Input.GetAxis("Mouse Y"), vertCamSnap * Time.deltaTime); 
 
         // kick rotation momentarily overrides normal rotation
         // consider using a time variable to unstuck for emergencies
@@ -569,17 +647,13 @@ public class Player : Character
             // just in case
             newPlayerRot.x = playerRot.x;
             newPlayerRot.z = 0;
-            transform.eulerAngles = Vector3.Lerp(playerRot, newPlayerRot, CamSnapY);
+            transform.eulerAngles = Vector3.Lerp(playerRot, newPlayerRot, horCamSnap);
 
-            
             // The camera only scrolls vertically since the player parent object handles horizontal scroll
             Vector3 camRot = cam.transform.rotation.eulerAngles;
             Vector3 newCamRot = Vector3.zero;
             
-            
-            float deltaMouseX = Input.GetAxis("Mouse X");
             float deltaMouseY = Input.GetAxis("Mouse Y");
-
 
             // camRot.x starts decreasing from 360 when you look up and is positive downwards   
             bool inNormalRange = (camRot.x > 280f || camRot.x < 80f);
@@ -589,12 +663,11 @@ public class Player : Character
             newCamRot.z = 0;
             newCamRot.y = camRot.y;
             // -= because xRot is negative upwards
-            
             if (inNormalRange || inLowerRange | inRaiseRange)
             {                
                 newCamRot.x = camRot.x - mouseY;
-                cam.transform.eulerAngles = Vector3.Lerp(camRot, newCamRot, CamSnapX);
-            }     
+                cam.transform.eulerAngles = Vector3.Lerp(camRot, newCamRot, vertCamSnap);
+            }            
         }
         
         if (kickStarted)
@@ -652,5 +725,7 @@ public class Player : Character
             gunReloadSfx.Play();
             reloadPlayed = true;
         }
+
+        healthLastFrame = health;
     }   
 }
